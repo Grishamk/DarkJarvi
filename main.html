@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Examen Interactivo — Banco 100 → 30 preguntas (Cabeza y Cuello)</title>
+<style>
+  :root{
+    --bg:#f7f7f7; --card:#fff; --primary:#0066ff; --muted:#666;
+    --ok-bg:#e6ffed; --ok-border:#9de6b8; --bad-bg:#ffe6e6; --bad-border:#ff9d9d;
+  }
+  body{font-family:Inter,system-ui,Arial; background:var(--bg); margin:0; padding:24px; display:flex; justify-content:center;}
+  .wrap{width:100%; max-width:1100px;}
+  .container{background:var(--card); border-radius:12px; padding:20px 24px; box-shadow:0 6px 30px rgba(0,0,0,0.08);}
+  h1{margin:0 0 6px; font-size:20px;}
+  p.lead{color:var(--muted); margin:4px 0 12px;}
+  .controls{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  button{background:var(--primary); color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;}
+  button.secondary{background:#888;}
+  .exam{margin-top:10px;}
+  .question{border:1px solid #e6e6e6; padding:14px; border-radius:10px; margin-bottom:12px; background:#fafafa;}
+  .question h3{margin:0 0 8px; font-size:16px;}
+  .options label{display:block; margin:6px 0; cursor:pointer;}
+  .badge{display:inline-block; padding:4px 8px; border-radius:6px; font-weight:600; margin-right:8px;}
+  .badge.ok{color:#0a6d2f;}
+  .badge.bad{color:#8b0000;}
+  .explain{margin-top:10px; padding:10px; border-radius:8px; background:#fbfbfb; font-size:14px; color:#222; border-left:4px solid rgba(0,0,0,0.06);}
+  .correct{background:var(--ok-bg); border-color:var(--ok-border);}
+  .incorrect{background:var(--bad-bg); border-color:var(--bad-border);}
+  #result{margin-top:12px; padding:14px; border-radius:10px; background:#eef7ff; border-left:6px solid var(--primary);}
+  .small{font-size:13px; color:var(--muted);}
+  @media(min-width:900px){ .controls{justify-content:flex-start;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="container">
+    <h1>Examen Interactivo — Cabeza y Cuello (Banco 100 → 30)</h1>
+    <p class="lead">Cada intento genera 30 preguntas aleatorias (sin temporizador). Las opciones también se mezclan. Al finalizar verás explicación de las preguntas incorrectas.</p>
+
+    <div class="controls">
+      <button id="startBtn">Iniciar examen</button>
+      <button id="finishBtn" class="hidden secondary">Finalizar examen</button>
+      <button id="retryBtn" class="hidden secondary">Reintentar</button>
+      <div style="flex:1"></div>
+      <div class="small">Fuente: Resumen de "Cabeza y Cuello" (documento provisto)</div>
+    </div>
+
+    <div id="exam" class="exam hidden"></div>
+    <div id="result" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+/* ===== BANCO DE 100 PREGUNTAS (basadas en el documento provisto) =====
+   Cada elemento: { question, options:[4], answer: index (0..3), explanation }
+   NOTA: las explicaciones son concisas y tomadas directamente del texto suministrado. */
+const questionBank = [
+  { question: "¿Cuántos huesos conforman el cráneo humano?", options: ["14","22","28","32"], answer:1, explanation: "El cráneo humano consta de 22 huesos." },
+  { question: "¿Cómo se llaman las articulaciones osificadas que unen los huesos del cráneo?", options: ["Suturas","Sínfisis","Gonfosis","Artrosis"], answer:0, explanation: "Las suturas son articulaciones osificadas que conectan los huesos del cráneo." },
+  { question: "¿En qué dos grandes regiones se divide el cráneo?", options: ["Neurocráneo y viscerocráneo","Bóveda y base","Anterior y posterior","Órbita y maxilar"], answer:0, explanation: "El cráneo se divide en neurocráneo (protege el encéfalo) y viscerocráneo (cara)." },
+  { question: "¿Qué foramen es el más grande del cráneo?", options: ["Foramen magno","Foramen oval","Foramen redondo","Foramen espinoso"], answer:0, explanation: "El foramen magno es la mayor apertura del cráneo por donde pasa el tronco encefálico." },
+  { question: "¿Qué estructura permite el paso de los nervios olfatorios hacia la cavidad nasal?", options: ["Conducto óptico","Lámina cribosa","Foramen yugular","Fisura orbitaria superior"], answer:1, explanation: "Los nervios olfatorios atraviesan múltiples forámenes de la lámina cribosa." },
+  { question: "¿Qué pasa a través del conducto óptico?", options: ["Nervio óptico y arteria oftálmica","Nervio facial","Nervio trigémino","Arteria carótida interna"], answer:0, explanation: "El nervio óptico y la arteria oftálmica atraviesan el conducto óptico." },
+  { question: "¿Qué pares craneales atraviesan la fisura orbitaria superior?", options: ["III, IV, V1 y VI","I y II","VII y VIII","IX y X"], answer:0, explanation: "La fisura orbitaria superior contiene III (oculomotor), IV (troclear), V1 (oftálmico) y VI (abducens)." },
+  { question: "¿Dónde se encuentra la silla turca?", options: ["Ala mayor del esfenoides","Silla turca en el cuerpo del esfenoides","Lámina cribosa","Porción petrosa del temporal"], answer:1, explanation: "La silla turca es una depresión en el cuerpo del esfenoides que aloja la hipófisis." },
+  { question: "¿Qué hueso forma la mayor parte de la frente?", options: ["Frontal","Parietal","Esfenoides","Occipital"], answer:0, explanation: "El hueso frontal forma la frente." },
+  { question: "¿Cuántos huesos conforman la cara (esqueleto facial)?", options: ["12","14","16","10"], answer:1, explanation: "La cara está formada por catorce huesos: doce pareados y dos impares." },
+  { question: "¿Cuál es el hueso único del tabique nasal posterior?", options: ["Vómer","Etmoides","Palatino","Nasal"], answer:0, explanation: "El vómer es un hueso impar que forma la parte posterior del tabique nasal." },
+  { question: "¿Cuál es el único hueso móvil de la cara?", options: ["Maxilar superior","Mandíbula (maxilar inferior)","Cigomático","Vómer"], answer:1, explanation: "La mandíbula es el único hueso facial que se articula mediante una articulación móvil (ATM)." },
+  { question: "¿Cuáles huesos forman la pared lateral de la órbita?", options: ["Frontal y etmoides","Maxilar y lagrimal","Ala mayor del esfenoides y cigomático","Vómer y palatino"], answer:2, explanation: "La pared externa de la órbita está formada por el ala mayor del esfenoides y apófisis orbitarias del cigomático y frontal." },
+  { question: "¿Qué estructura forma el techo de la órbita?", options: ["Ala mayor del esfenoides","Porción horizontal del frontal y ala menor del esfenoides","Maxilar superior","Palatino"], answer:1, explanation: "El techo está formado por la porción horizontal del frontal y el ala menor del esfenoides." },
+  { question: "¿Qué músculo es el principal responsable del cierre de los labios?", options: ["Buccinador","Orbicular de la boca","Cigomático mayor","Risorio"], answer:1, explanation: "El orbicular de la boca permite el cierre y la oposición de los labios." },
+  { question: "¿Qué nervio inerva los músculos de la expresión facial?", options: ["Trigémino (V)","Facial (VII)","Glosofaríngeo (IX)","Hipogloso (XII)"], answer:1, explanation: "Los músculos de la expresión están inervados por el nervio facial (VII par)." },
+  { question: "¿Cuál de los siguientes músculos NO es un músculo masticador?", options: ["Temporal","Masetero","Orbicular de la boca","Pterigoideo medial"], answer:2, explanation: "El orbicular de la boca es músculo de la expresión, no de la masticación." },
+  { question: "¿Qué nervio motor inerva los músculos de la masticación?", options: ["Ramo mandibular (V3) del trigémino","Nervio facial (VII)","Nervio glosofaríngeo (IX)","Nervio hipogloso (XII)"], answer:0, explanation: "Los músculos masticadores están inervados por fibras motoras del ramo mandibular (V3) del trigémino." },
+  { question: "¿Cuál es la función principal del músculo masetero?", options: ["Depresión mandibular","Elevación de la mandíbula (cierre)","Protrusión extrema","Retracción"], answer:1, explanation: "El masetero eleva la mandíbula, contribuyendo al cierre." },
+  { question: "¿Dónde se origina el músculo temporal?", options: ["Fosa temporal y fascia temporal profunda","Apófisis coronoides","Cara lateral del masetero","Hueso hioides"], answer:0, explanation: "El temporal se origina en la fosa temporal por debajo de la línea temporal y la fascia temporal." },
+  { question: "¿Cuál músculo provoca protrusión de la mandíbula cuando ambos lados se contraen?", options: ["Masetero","Pterigoideo medial","Pterigoideo lateral","Temporal"], answer:2, explanation: "La contracción bilateral del pterigoideo lateral provoca protrusión y depresión mandibular." },
+  { question: "¿Qué componente anatómico define la fosa pterigomaxilar?", options: ["Región entre el hueso hioides y la mandíbula","Pequeña región detrás del maxilar y dentro de la fosa cigomática","Parte anterior de la órbita","Techo de la cavidad nasal"], answer:1, explanation: "La fosa pterigomaxilar está situada por dentro de la fosa cigomática y tiene forma piramidal." },
+  { question: "¿Qué estructuras forman las fosas nasales lateralmente?", options: ["Maxilar, esfenoides, palatino, lagrimal, concha inferior y etmoides","Frontal y occipital","Vómer y palatino","Cigomático y nasal"], answer:0, explanation: "La pared externa de las fosas nasales incluye maxilar, esfenoides, palatino, lagrimal, concha inferior y etmoides." },
+  { question: "¿Qué arteria principal irriga la cavidad nasal a través de ramas?", options: ["Arteria carótida interna","Arteria carótida externa y ramas (esfenopalatina, palatina)","Arteria vertebral","Arteria temporal superficial"], answer:1, explanation: "Las ramas de la carótida externa (esfenopalatina, palatina mayor, etc.) irrigan la cavidad nasal." },
+  { question: "¿Cuál es la función principal de las glándulas salivales?", options: ["Producir hormonas tiroideas","Lubricar y empezar digestión (amilasa)","Irrigar la cavidad oral","Inervar la lengua"], answer:1, explanation: "Las glándulas salivales lubrican la mucosa oral y secretan enzimas como la amilasa para iniciar la digestión." },
+  { question: "¿Cuál de estas es una glándula salival mayor serosa?", options: ["Sublingual","Submandibular","Parótida","Labial"], answer:2, explanation: "La glándula parótida es serosa y se ubica entre la rama de la mandíbula y el esternocleidomastoideo." },
+  { question: "¿Dónde drena el conducto parotídeo?", options: ["Vestíbulo oral, cerca del segundo molar superior","Debajo de la lengua","En el piso de la faringe","En la glotis"], answer:0, explanation: "El conducto parotídeo desemboca en el vestíbulo oral cerca del segundo molar superior." },
+  { question: "¿Qué cartílagos forman el esqueleto laríngeo impar?", options: ["Aritenoides y corniculado","Cricoides, tiroides y epiglotis","Cuneiforme y aritenoide","Tiroides y aritenoides solamente"], answer:1, explanation: "Los cartílagos impares de la laringe son cricoides, tiroides y epiglotis." },
+  { question: "¿Cuál es la principal función de la laringe?", options: ["Filtrar la sangre","Conducir aire y proteger vías respiratorias (fonación)","Secretar saliva","Soportar la lengua"], answer:1, explanation: "La laringe conduce aire al tracto respiratorio inferior y cierra las vías respiratorias durante la deglución; es el órgano de fonación." },
+  { question: "¿Qué nervio da ramas al plexo faríngeo (inervación de la faringe)?", options: ["Nervio vago (X), glosofaríngeo (IX) y V2","Nervio facial (VII) solamente","Nervio hipogloso (XII)","Nervio trigémino (V) solamente"], answer:0, explanation: "El plexo faríngeo recibe ramas de X (vago), IX (glosofaríngeo) y del maxilar (V2)." },
+  { question: "¿Cuál es la porción de la faringe posterior a la cavidad nasal?", options: ["Orofaringe","Nasofaringe","Laringofaringe","Hipofaringe"], answer:1, explanation: "La nasofaringe se localiza detrás de la cavidad nasal e incluye la tonsila faríngea." },
+  { question: "¿Qué músculo forma parte del piso de la boca y es suprahioideo?", options: ["Milohioideo","Omohioideo","Esternocleidomastoideo","Platisma"], answer:0, explanation: "El milohioideo forma el piso de la boca y es un músculo suprahioideo." },
+  { question: "¿Qué hueso del cuello no articula directamente con otros huesos?", options: ["Manubrio","Hioides","Vértebra C1","Cartílago tiroides"], answer:1, explanation: "El hueso hioides no se articula con otros huesos; está suspendido por músculos y ligamentos." },
+  { question: "¿Qué músculos se insertan en la cara superior del hioides?", options: ["Suprahioideos (digástrico, milohioideo, geniogloso, estilohioideo)","Infrahioideos","Escalenos","Trapecio"], answer:0, explanation: "Los músculos suprahioideos se originan o se insertan en la cara superior del hioides y forman el piso de la boca." },
+  { question: "¿Qué músculos forman los infrahioideos?", options: ["Esternohioideo, omohioideo, esternotiroideo, tirohioideo","Digástrico, milohioideo, estilohioideo","Temporal, masetero","Escalenos"], answer:0, explanation: "Los infrahioideos incluyen esternohioideo, omohioideo, esternotiroideo y tirohioideo." },
+  { question: "¿Qué músculo del cuello está inervado por el accesorio (XI) y ramos C2-C3?", options: ["Esternocleidomastoideo","Omohioideo","Platisma","Milohioideo"], answer:0, explanation: "El esternocleidomastoideo es inervado por el nervio accesorio (XI) y ramos de C2-C3." },
+  { question: "¿Cuál de las siguientes vértebras cervicales es atípica y carece de cuerpo vertebral?", options: ["C3","C4","Atlas (C1)","C7"], answer:2, explanation: "El atlas (C1) es atípico y no tiene un cuerpo vertebral verdadero." },
+  { question: "¿Qué estructura caracteriza al axis (C2)?", options: ["Foramen transverso grande","Apófisis odontoides (diente)","Apófisis espinosa prominente y bifurcada","Tubérculo carotídeo"], answer:1, explanation: "El axis tiene la apófisis odontoides (diente del axis) que articula con el atlas." },
+  { question: "¿Qué vértebra cervical se llama 'prominente' por su larga apófisis espinosa?", options: ["C3","C6","C7","C5"], answer:2, explanation: "La séptima vértebra cervical (C7) se llama prominente por su apófisis espinosa larga no bifurcada." },
+  { question: "¿Qué estructura pasa por el foramen transverso de las vértebras cervicales (C1-C6 principalmente)?", options: ["Arteria vertebral","Arteria carótida interna","Nervio vago","Arteria tiroidea superior"], answer:0, explanation: "La arteria vertebral (y venas homónimas) pasa por los forámenes transversos de las vértebras cervicales." },
+  { question: "¿Cuál es la irrigación principal de la glándula tiroides?", options: ["Arteria tiroidea superior e inferior","Arteria oftálmica","Arteria temporal superficial","Arteria vertebral"], answer:0, explanation: "La tiroides recibe irrigación de la arteria tiroidea superior y la tiroidea inferior (y ocasionalmente la tiroidea ima)."},
+  { question: "¿Qué hormona estimula la tiroides para producir T3/T4?", options: ["TRH","TSH","ACTH","ADH"], answer:1, explanation: "La TSH (hipófisis) estimula la glándula tiroides para producir T3 y T4; TRH regula la TSH." },
+  { question: "¿Dónde se localiza la glándula tiroides?", options: ["Anterior e inferior a la laringe","En la cavidad nasal","Detrás del maxilar","En la fosa infratemporal"], answer:0, explanation: "La tiroides está en el cuello, anterior e inferior a la laringe." },
+  { question: "¿Qué rama de la arteria carótida externa irriga estructuras de la cara y el cuello (mencionada en el texto)?", options: ["Arteria maxilar","Arteria cerebral media","Arteria oftálmica","Arteria vertebral"], answer:0, explanation: "La arteria maxilar es una rama importante de la carótida externa que irriga la región facial y estructuras profundas." },
+  { question: "¿Qué arteria asciende en la vaina carotídea y no da ramas en el cuello?", options: ["Carótida externa","Carótida interna","Arteria vertebral","Arteria tiroidea"], answer:1, explanation: "La arteria carótida interna asciende en la vaina carotídea y no origina ramas cervicales (irriga el encéfalo)." },
+  { question: "¿Qué estructuras pasan por el foramen yugular?", options: ["Vena yugular interna y nervios IX, X, XI","Nervio facial y vestibulococlear","Nervio óptico y arteria oftálmica","Nervio trigémino completo"], answer:0, explanation: "El foramen yugular contiene la vena yugular interna y los nervios glosofaríngeo (IX), vago (X) y accesorio (XI)."},
+  { question: "¿Qué conducto en la base del cráneo permite el paso de la arteria carótida interna?", options: ["Conducto auditivo interno","Conducto carotídeo","Foramen magno","Foramen rotundo"], answer:1, explanation: "El conducto carotídeo transporta la arteria carótida interna hacia la base del cráneo."},
+  { question: "¿Cuál es la función del istmo de la tiroides?", options: ["Conectar los lóbulos derecho e izquierdo","Producir TSH","Conectar la tiroides con la tráquea","Sujetar a la laringe"], answer:0, explanation: "El istmo conecta los lóbulos derecho e izquierdo de la glándula tiroidea."},
+  { question: "¿Qué músculo cervical superficial tiene forma de sábana y contribuye a la expresión del cuello?", options: ["Esternocleidomastoideo","Platisma","Omohioideo","Tirohioideo"], answer:1, explanation: "El platisma es un músculo superficial en el cuello con forma de sábana."},
+  { question: "¿Qué músculos forman el grupo suprahioideo?", options: ["Digástrico, milohioideo, geniogloso, estilohioideo","Esternohioideo, omohioideo","Temporal y masetero","Escalenos"], answer:0, explanation: "Los suprahioideos incluyen digástrico, milohioideo, genihioideo y estilohioideo."},
+  { question: "¿Qué músculo tiene dos vientres y un tendón intermedio (similar al omohioideo)?", options: ["Digástrico","Masetero","Temporal","Pterigoideo"], answer:0, explanation: "El músculo digástrico tiene un vientre anterior y posterior unidos por un tendón intermedio."},
+  { question: "¿Cuál es la composición de las paredes de las fosas nasales (piso) según el texto?", options: ["Apófisis palatina del maxilar y lámina horizontal del palatino","Hueso frontal y etmoides","Vómer y concha media","Palatino y nasal"], answer:0, explanation: "El piso de las fosas nasales está formado por la apófisis palatina del maxilar superior y la lámina horizontal del palatino."},
+  { question: "¿Qué meatos nasales se mencionan en el documento?", options: ["Inferior, medio y superior","Solo medio e inferior","Anterior y posterior","Superior y común"], answer:0, explanation: "El texto menciona meato nasal inferior, medio y superior, y otros recesos." },
+  { question: "¿Qué glándula salival tiene múltiples conductos excretores?", options: ["Parótida","Submandibular","Sublingual","Submental"], answer:2, explanation: "La glándula sublingual posee múltiples conductos excretores."},
+  { question: "¿Dónde se localiza la glándula submandibular?", options: ["Debajo del milohioideo (región submandibular)","Dentro del conducto auditivo","En la cavidad nasal","En la órbita"], answer:0, explanation: "La submandibular está debajo del músculo milohioideo, en la fosa submandibular."},
+  { question: "¿Qué músculo se inserta en la apófisis coronoides de la mandíbula?", options: ["Temporal","Masetero","Pterigoideo lateral","Buccinador"], answer:0, explanation: "El tendón del músculo temporal se inserta en la apófisis coronoides."},
+  { question: "¿Qué músculo se considera fuerte y cuadrangular cubriendo la rama de la mandíbula?", options: ["Masetero","Temporal","Pterigoideo medial","Platisma"], answer:0, explanation: "El masetero es un músculo fuerte, de forma cuadrangular que cubre la rama mandibular lateralmente."},
+  { question: "¿Qué músculo permite los movimientos de lateralización (desplazamiento de la mandíbula a un lado)?", options: ["Pterigoideo lateral (contracción unilateral)","Temporal","Masetero","Buccinador"], answer:0, explanation: "La contracción unilateral del pterigoideo lateral desplaza la mandíbula al lado opuesto."},
+  { question: "¿Qué elemento anatómico forma la porción superior del tabique nasal?", options: ["Vómer","Lámina perpendicular del etmoides","Nasal","Palatino"], answer:1, explanation: "La lámina perpendicular del etmoides forma parte del tabique nasal superior."},
+  { question: "¿Qué nervio es responsable del sentido del olfato?", options: ["Trigémino (V)","Olfatorio (I)","Facial (VII)","Glosofaríngeo (IX)"], answer:1, explanation: "El nervio olfatorio (I) es el nervio sensorial del olfato."},
+  { question: "¿Qué arterias derivadas de la oftálmica irrigan la cavidad nasal (mencionadas en el texto)?", options: ["Etmoidales anterior y posterior","Carótida interna y externa","Temporal superficial","Maxilar interna"], answer:0, explanation: "Las ramas etmoidales anterior y posterior de la arteria oftálmica contribuyen a la irrigación nasal."},
+  { question: "¿Cuáles son las partes de la laringe según la estructura interna mencionada?", options: ["Vestíbulo, parte media y cavidad infraglótica","Nasofaringe, orofaringe y laringofaringe","Techo, piso y paredes","Glotis y nasofaringe solamente"], answer:0, explanation: "La laringe se divide en vestíbulo, parte media y cavidad infraglótica."},
+  { question: "¿Qué pliegues forman la rima glótica (glotis)?", options: ["Pliegues aritenoideos","Pliegues vocales (pliegues verdaderos)","Pliegues palatinos","Pliegues nasales"], answer:1, explanation: "La glotis incluye los pliegues vocales que delimitan la rima glótica."},
+  { question: "¿Qué arterias irrigan la laringe?", options: ["Laríngeas superior e inferior","Carótida externa e interna","Temporal superficial","Facial"], answer:0, explanation: "La irrigación laríngea proviene de las arterias laríngeas superior e inferior."},
+  { question: "¿Qué drenaje linfático se menciona para la laringe?", options: ["Ganglios axilares","Ganglios cervicales profundos superiores e inferiores","Ganglios inguinales","Ganglios braquiales"], answer:1, explanation: "El drenaje linfático de la laringe pasa por ganglios cervicales profundos superiores e inferiores."},
+  { question: "¿Qué músculo del cuello se inserta en el proceso mastoides?", options: ["Trapecio","Esternocleidomastoideo","Platisma","Omohioideo"], answer:1, explanation: "El esternocleidomastoideo se inserta en el proceso mastoides del temporal."},
+  { question: "¿Qué músculos constituyen los músculos vertebrales anteriores (prevertebrales)?", options: ["Recto anterior de la cabeza, recto lateral, largo de la cabeza y largo del cuello","Escalenos anterior, medio y posterior","Masetero y temporal","Omohioideo y esternohioideo"], answer:0, explanation: "Los prevertebrales incluyen recto anterior y lateral de la cabeza, largo de la cabeza y largo del cuello."},
+  { question: "¿Cuál músculo conecta la escápula con el hioides y tiene dos vientres con tendón intermedio?", options: ["Omohioideo","Esternohioideo","Digástrico","Tirohioideo"], answer:0, explanation: "El omohioideo tiene un vientre inferior y uno superior unidos por un tendón intermedio."},
+  { question: "¿Qué nervio inerva el tirohioideo según el texto?", options: ["Nervio facial (VII)","Ramos de C1 a través del hipogloso (XII)","Nervio vago (X)","Nervio trigémino (V)"], answer:1, explanation: "El tirohioideo recibe fibras de C1 que viajan con el nervio hipogloso (XII)." },
+  { question: "¿Qué músculo del cuello es responsable de la flexión ipsilateral del cuello por su inserción en las vértebras transversas y primeras costillas?", options: ["Escaleno anterior","Esternocleidomastoideo","Omohioideo","Platisma"], answer:0, explanation: "Los escalenos (anterior, medio y posterior) producen flexión ipsilateral del cuello." },
+  { question: "¿Qué glándula salival se ubica entre la rama de la mandíbula y el esternocleidomastoideo?", options: ["Parótida","Submandibular","Sublingual","Palatina"], answer:0, explanation: "La parótida está localizada entre la rama de la mandíbula y el esternocleidomastoideo." },
+  { question: "¿Qué componente de la órbita contribuye al piso orbital?", options: ["Apófisis orbitarias del cigomático y frontal","Apófisis piramidal del maxilar, apófisis orbitaria del cigomático y palatino","Ala menor del esfenoides","Lámina cribosa"], answer:1, explanation: "El piso orbital está formado por la apófisis piramidal del maxilar, apófisis orbitaria del cigomático y apófisis orbitaria del palatino." },
+  { question: "¿Qué músculo permite eversión del labio superior?", options: ["Cigomático mayor","Elevador del labio superior","Depresor del labio inferior","Orbicular de la boca"], answer:1, explanation: "El elevador del labio superior y el elevador del labio superior y del ala de la nariz participan en la eversión del labio superior." },
+  { question: "¿Cuántos músculos principales de la boca (grupo bucolabial) se mencionan en el texto?", options: ["5","8","11","14"], answer:2, explanation: "El texto menciona que existen 11 músculos en el grupo bucolabial." },
+  { question: "¿Qué estructura separa la cavidad bucal de las fosas nasales?", options: ["Paladar (bóveda y parte blanda)","Hioides","Laringe","Faringe"], answer:0, explanation: "El paladar forma el techo de la cavidad bucal separándola de las fosas nasales; tiene parte ósea y parte blanda." },
+  { question: "¿Qué pliegue ayuda a evitar que alimentos entren en las vías respiratorias durante la deglución?", options: ["Úvula","Pterigomaxilar","Papila palatina","Apófisis coronoides"], answer:0, explanation: "La úvula, en el paladar blando, ayuda a evitar el paso de alimentos hacia las vías respiratorias al tragar." },
+  { question: "¿Qué nervio proporciona sensibilidad general a la cavidad nasal?", options: ["Nervio olfatorio","Nervio trigémino (V)","Nervio facial (VII)","Nervio vago (X)"], answer:1, explanation: "El nervio trigémino (V) provee sensibilidad general a la mucosa nasal." },
+  { question: "¿Qué músculos elevan el labio superior según el texto?", options: ["Orbicular de la boca y risorio","Elevador del labio superior y elevador del labio superior y del ala de la nariz","Depresor del ángulo de la boca y mentoniano","Cigomático mayor y masetero"], answer:1, explanation: "El elevador del labio superior y el elevador del labio superior y del ala de la nariz elevan y evierten el labio superior." },
+  { question: "¿Qué músculo separa la cara de la piel cabelluda y ayuda en gestos faciales?", options: ["Occipitofrontal (frontal y occipital)","Masetero","Platisma","Esternocleidomastoideo"], answer:0, explanation: "El occipitofrontal forma parte del grupo epicraneal y participa en movimientos de la piel cabelluda y frente." },
+  { question: "¿Qué nervio pasa por el conducto auditivo interno según el texto?", options: ["Nervio facial y vestibulococlear (VII y VIII)","Nervio vago (X)","Nervio trigémino (V)","Nervio accesorio (XI)"], answer:0, explanation: "El conducto auditivo interno contiene al nervio facial (VII) y al nervio vestibulococlear (VIII)."},
+  { question: "¿Qué ligamento limita los movimientos excesivos de protrusión y apertura de la mandíbula?", options: ["Ligamento estilomandibular","Ligamento esfenomandibular","Ligamento lateral de la ATM","Ligamento colateral"], answer:1, explanation: "El ligamento esfenomandibular contribuye a limitar movimientos excesivos de protrusión y apertura." },
+  { question: "¿Cuántos compartimentos sinoviales tiene la articulación temporomandibular (ATM)?", options: ["1","2","3","4"], answer:1, explanation: "La ATM está dividida por el disco articular en un compartimento superior (traslación) y uno inferior (rotación), por tanto dos." },
+  { question: "¿Qué arteria es rama terminal de la carótida externa y participa en irrigación de la ATM?", options: ["Temporal superficial","Carótida interna","Maxilar interna","Vertebral"], answer:0, explanation: "La arteria temporal superficial (rama terminal de la carótida externa) provee irrigación a la ATM." },
+  { question: "¿Qué componente óseo forma parte de la base del cráneo?", options: ["Esfenoides, etmoides, temporal, occipital y frontal (partes)","Solo parietal","Solo frontal","Solo maxilar"], answer:0, explanation: "La base del cráneo está formada por partes del frontal, etmoides, esfenoides, occipital y temporales." },
+  { question: "¿Qué estructura se articula con la apófisis odontoides del axis?", options: ["Arco posterior del atlas","Arco anterior del atlas","Cuerpo de C3","Apófisis transversa de C1"], answer:1, explanation: "La carilla posterior del arco anterior del atlas se articula con la apófisis odontoides del axis." },
+  { question: "¿Qué músculo está inervado por el ramo maseterino del nervio mandibular?", options: ["Masetero","Temporal","Pterigoideo lateral","Orbicular de la boca"], answer:0, explanation: "El masetero es inervado por el nervio maseterino, ramo del V3 (mandibular)." },
+  { question: "¿Qué músculo de la masticación se localiza en la fosa infratemporal (dos pterigoideos)?", options: ["Masetero y temporal","Pterigoideos medial y lateral","Orbicular de los ojos","Buccinador"], answer:1, explanation: "Los pterigoideos medial y lateral se ubican en la fosa infratemporal." },
+  { question: "¿Qué nervio participa en la secreción de glándulas serosas de la nariz (parasimpático) según el texto?", options: ["Nervio olfatorio (I)","Nervio facial (VII)","Nervio trigémino (V)","Nervio vago (X)"], answer:1, explanation: "El nervio facial participa en inervación parasimpática que estimula secreción de glándulas serosas nasales." },
+  { question: "¿Qué porción ósea forma la bóveda craneal o calvaria?", options: ["Parietales y partes del frontal y occipital","Solo occipital","Solo esfenoides","Solo temporal"], answer:0, explanation: "La bóveda craneal incluye ambos parietales y partes del frontal y occipital." },
+  { question: "¿Qué borde del maxilar superior da inserción a los dientes superiores?", options: ["Proceso alveolar","Proceso cigomático","Apófisis palatina","Tuberosidad"], answer:0, explanation: "El proceso alveolar del maxilar superior sostiene los dientes de la arcada superior." },
+  { question: "¿Qué hueso forma parte de la órbita y a la vez contribuye a la pared interna?", options: ["Lagrimal","Vómer","Cigomático","Maxilar inferior"], answer:0, explanation: "El hueso lagrimal contribuye a la pared interna de la órbita." },
+  { question: "¿Qué división del cráneo protege casi completamente al encéfalo?", options: ["Viscerocráneo","Neurocráneo","Bóveda facial","Mandíbula"], answer:1, explanation: "El neurocráneo protege casi completamente el encéfalo." },
+  { question: "¿Qué músculo se origina en la piel y fascia sobre la región de la clavícula y asciende por el cuello (superficial)?", options: ["Platisma","Milohioideo","Omohioideo","Esternotiroideo"], answer:0, explanation: "El platisma se origina en piel y fascia sobre la región clavicular y recorre el cuello superficialmente." }
+]; // FIN banco 100
+
+/* ===== LÓGICA DEL EXAMEN: tomar 30 preguntas al azar, mezclar opciones, presentación y corrección ===== */
+
+function shuffleArray(array){
+  for(let i = array.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+const startBtn = document.getElementById('startBtn');
+const finishBtn = document.getElementById('finishBtn');
+const retryBtn = document.getElementById('retryBtn');
+const examDiv = document.getElementById('exam');
+const resultDiv = document.getElementById('result');
+
+let currentSet = []; // 30 preguntas seleccionadas (ya mezcladas y con opciones barajadas)
+
+startBtn.addEventListener('click', () => {
+  // seleccionar 30 preguntas aleatorias del banco de 100
+  const temp = shuffleArray(questionBank.slice());
+  const pick30 = temp.slice(0, 30);
+
+  // para cada pregunta, clonarla y mezclar opciones y recomputar índice respuesta
+  currentSet = pick30.map(q => {
+    const clone = JSON.parse(JSON.stringify(q));
+    // construir array indexado con opción original y su índice
+    const indexed = clone.options.map((opt, idx) => ({ opt, idx }));
+    shuffleArray(indexed);
+    clone.options = indexed.map(x => x.opt);
+    clone.answer = indexed.findIndex(x => x.idx === q.answer);
+    return clone;
+  });
+
+  // mezclar orden de preguntas también
+  shuffleArray(currentSet);
+
+  // renderizar
+  examDiv.innerHTML = '';
+  currentSet.forEach((q, i) => {
+    const qDiv = document.createElement('div');
+    qDiv.className = 'question';
+    qDiv.dataset.index = i;
+    qDiv.innerHTML = `<h3>${i+1}. ${q.question}</h3>`;
+    const optsDiv = document.createElement('div');
+    optsDiv.className = 'options';
+    q.options.forEach((opt, j) => {
+      const id = `q${i}_opt${j}`;
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="radio" name="q${i}" value="${j}"> ${opt}`;
+      optsDiv.appendChild(label);
+    });
+    qDiv.appendChild(optsDiv);
+    examDiv.appendChild(qDiv);
+  });
+
+  // UI toggles
+  startBtn.classList.add('hidden');
+  finishBtn.classList.remove('hidden');
+  retryBtn.classList.add('hidden');
+  examDiv.classList.remove('hidden');
+  resultDiv.classList.add('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+finishBtn.addEventListener('click', () => {
+  let score = 0;
+  // recorrer y evaluar
+  currentSet.forEach((q, i) => {
+    const qDiv = examDiv.querySelector(`.question[data-index='${i}']`);
+    const selected = qDiv.querySelector(`input[name='q${i}']:checked`);
+    const userAns = selected ? parseInt(selected.value) : null;
+
+    // remover etiquetas previas si existen
+    const h3 = qDiv.querySelector('h3');
+    const existingBadge = h3.querySelector('.badge');
+    if(existingBadge) existingBadge.remove();
+
+    if(userAns === q.answer){
+      score++;
+      qDiv.classList.add('correct');
+      const span = document.createElement('span');
+      span.className = 'badge ok';
+      span.textContent = 'Correcto ✓';
+      h3.prepend(span);
+    } else {
+      qDiv.classList.add('incorrect');
+      const span = document.createElement('span');
+      span.className = 'badge bad';
+      span.textContent = 'Incorrecto ✗';
+      h3.prepend(span);
+      // mostrar respuesta correcta y explicación
+      const explained = document.createElement('div');
+      explained.className = 'explain';
+      explained.innerHTML = `<div><strong>Respuesta correcta:</strong> ${q.options[q.answer]}</div>
+                            <div style="margin-top:8px;">${q.explanation || 'Explicación no disponible.'}</div>`;
+      // prevenir duplicados
+      if(!qDiv.querySelector('.explain')) qDiv.appendChild(explained);
+    }
+  });
+
+  // resultado final
+  resultDiv.classList.remove('hidden');
+  resultDiv.innerHTML = `<h3>Resultado final</h3>
+                         <p>Puntuación: <strong>${score} / ${currentSet.length}</strong></p>
+                         <p class="small">Las preguntas correctas se marcaron en verde. Las incorrectas en rojo incluyen la respuesta correcta y una explicación.</p>`;
+  finishBtn.classList.add('hidden');
+  retryBtn.classList.remove('hidden');
+  resultDiv.scrollIntoView({behavior:'smooth'});
+});
+
+retryBtn.addEventListener('click', () => {
+  examDiv.innerHTML = '';
+  resultDiv.classList.add('hidden');
+  retryBtn.classList.add('hidden');
+  startBtn.classList.remove('hidden');
+  finishBtn.classList.add('hidden');
+  // forzar garbage collect de currentSet
+  currentSet = [];
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+</script>
+</body>
+</html>
